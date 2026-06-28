@@ -9,28 +9,36 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    
+    # Tambahin environment variable untuk Android
+    env:
+      ANDROID_HOME: /usr/local/android-sdk
+      ANDROID_SDK_ROOT: /usr/local/android-sdk
+      
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          packages: |
-            platform-tools
-            platforms;android-33
-            build-tools;33.0.0
-
+      # Setup Java dulu
       - name: Setup Java JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
 
-      # Extract zip dengan handle spasi dan nested zip
+      # Install SDK components pake sdkmanager langsung
+      - name: Install Android SDK Components
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+            "platform-tools" \
+            "platforms;android-33" \
+            "build-tools;33.0.0"
+        continue-on-error: true  # Kalo gagal, lanjut aja
+
+      # Extract zip (handle spasi)
       - name: Extract Main Zip
         run: |
-          # Cari file zip utama (handle spasi)
+          # Cari file zip utama
           ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -not -name "*kontrol*" | head -n 1)
           if [ -z "$ZIP_FILE" ]; then
             echo "❌ Tidak ditemukan file zip!"
@@ -43,10 +51,10 @@ jobs:
           # Hapus zip setelah extract
           rm "$ZIP_FILE"
 
-      # Cari folder android dan build
+      # Build Android APK
       - name: Build Android APK
         run: |
-          # Cari folder android (tapi exclude yang di .github)
+          # Cari folder android
           ANDROID_DIR=$(find . -type d -name "android" -not -path "./.github/*" | head -n 1)
           
           if [ -z "$ANDROID_DIR" ]; then
@@ -65,7 +73,10 @@ jobs:
             exit 1
           fi
           
+          # Kasih permission
           chmod +x gradlew
+          
+          # Build dengan gradle
           ./gradlew assembleRelease --stacktrace --no-daemon
 
       - name: Upload APK Artifact
